@@ -12,6 +12,7 @@
 #include <thread>
 #include <mutex>
 #include <atomic>
+#include <condition_variable>
 #include "window.hpp"
 #include "game.hpp"
 #include "player.hpp"
@@ -47,6 +48,9 @@ class TcpClient
         std::vector<BoxCollision> obstacles;                    //Przeszkody
         std::mutex bulletMutex;                                 // Mutex do ochrony dostępu do pocisków
         std::mutex playerMutex;                                 //Mutex do ochrony dostępu do graczy
+        bool canShutdown;                                       //Do zamykania serwera
+        std::mutex shutdownMutex;                               //
+        std::condition_variable Shutdown;                       //Czy może się wyłączyć
 
 };
 
