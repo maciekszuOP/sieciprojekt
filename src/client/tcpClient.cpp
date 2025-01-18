@@ -23,6 +23,7 @@ TcpClient::TcpClient(sf::IpAddress serverAddress,unsigned short port)
         return;
     }
     running = true;
+    canShutdown = false;
     gameState = 1;
     timeLeft = 0;
     mapId = 0;
@@ -110,6 +111,7 @@ int TcpClient::Game()
         //Sprawdzenie czy okno zostało zamknięte
         if(EventLoop(Window)  == -1)  
         {
+            running = false;
             continue;
         }
 
@@ -194,6 +196,9 @@ int TcpClient::Game()
         Window->display();               //Wrzucenie zmian do okna
     }
 
+    std::unique_lock<std::mutex> lock(shutdownMutex);
+    Shutdown.wait(lock, [this]{ return canShutdown; });  // Czekanie na zakończenie wątku pobierania danych
+
     std::cout<<"Koniec\n";
     return 0;
 }
@@ -269,7 +274,13 @@ bool TcpClient::GetMapInfo()
 {
     sf::Packet mapPacket;
 
+    sf::SocketSelector selector;
+    selector.add(socket);
+
+    sf::Packet responsePacket;
+
     // Próba odbioru pakietu
+    selector.wait(sf::seconds(10));
     if (socket.receive(mapPacket) == sf::Socket::Done)
     {
         if (mapPacket >> mapId) // Próba deserializacji ID mapy z pakietu
@@ -374,11 +385,11 @@ void TcpClient::ReceiveFromServer()
             std::unique_lock<std::mutex> bulletLock(bulletMutex);
             map.ReplaceBullets(bullets);
             bulletLock.unlock();
-            //std::cout<<"Załadowano pocisk\n";
-            //std::unique_lock<std::mutex> lock(bulletMutex);
-            //map.SetBulletBox(bullets);
         }
-        //std::cout<<timeLeft<<std::endl;
     }
+    std::unique_lock<std::mutex> lock(shutdownMutex);
+    canShutdown = true;  // Ustawienie flagi zakończenia
+    lock.unlock();
+    Shutdown.notify_all();  // Powiadomienie oczekujących wątków
 }
 
